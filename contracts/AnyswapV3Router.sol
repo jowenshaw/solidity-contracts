@@ -345,6 +345,14 @@ contract AnyswapV3Router {
         _anySwapOut(msg.sender, token, to, amount, toChainID);
     }
 
+    function anySwapOutNative(address token, address to, uint toChainID) external payable {
+        require(AnyswapV1ERC20(token).underlying() == wNATIVE, "AnyswapV3Router: underlying is not wNATIVE");
+        IwNATIVE(wNATIVE).deposit{value: msg.value}();
+        assert(IwNATIVE(wNATIVE).transfer(token, msg.value));
+        AnyswapV1ERC20(token).depositVault(msg.value, msg.sender);
+        _anySwapOut(msg.sender, token, to, msg.value, toChainID);
+    }
+
     function anySwapOutUnderlyingWithPermit(
         address from,
         address token,
@@ -409,7 +417,13 @@ contract AnyswapV3Router {
         AnyswapV1ERC20 _anyToken = AnyswapV1ERC20(token);
         address _underlying = _anyToken.underlying();
         if (_underlying != address(0) && IERC20(_underlying).balanceOf(token) >= amount) {
-            _anyToken.withdrawVault(to, amount, to);
+            if (_underlying == wNATIVE) {
+                _anyToken.withdrawVault(to, amount, address(this));
+                IwNATIVE(wNATIVE).withdraw(amount);
+                TransferHelper.safeTransferNative(to, amount);
+            } else {
+                _anyToken.withdrawVault(to, amount, to);
+            }
         }
     }
 
