@@ -203,6 +203,8 @@ interface AnyswapV1ERC20 {
     function depositVault(uint amount, address to) external returns (uint);
     function withdrawVault(address from, uint amount, address to) external returns (uint);
     function underlying() external view returns (address);
+    function deposit(uint amount, address to) external returns (uint);
+    function withdraw(uint amount, address to) external returns (uint);
 }
 
 /**
@@ -425,6 +427,22 @@ contract AnyswapV3Router {
                 _anyToken.withdrawVault(to, amount, to);
             }
         }
+    }
+
+    function depositNative(address token, address to) external payable returns (uint) {
+        require(AnyswapV1ERC20(token).underlying() == wNATIVE, "AnyswapV3Router: underlying is not wNATIVE");
+        IwNATIVE(wNATIVE).deposit{value: msg.value}();
+        assert(IwNATIVE(wNATIVE).transfer(token, msg.value));
+        AnyswapV1ERC20(token).depositVault(msg.value, to);
+        return msg.value;
+    }
+
+    function withdrawNative(address token, uint amount, address to) external returns (uint) {
+        require(AnyswapV1ERC20(token).underlying() == wNATIVE, "AnyswapV3Router: underlying is not wNATIVE");
+        AnyswapV1ERC20(token).withdrawVault(msg.sender, amount, address(this));
+        IwNATIVE(wNATIVE).withdraw(amount);
+        TransferHelper.safeTransferNative(to, amount);
+        return amount;
     }
 
     // extracts mpc fee from bridge fees
