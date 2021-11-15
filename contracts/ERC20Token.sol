@@ -1,18 +1,21 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity >=0.8.2;
+pragma solidity >=0.8.6;
 
+// safe math is already ensured in solidity with version >= 0.8.0
+// so here is just an encapsulation for safe math usage
+// NOTICE: if you change solidity version to some < 0.8.0, never use this impl!
 library SafeMath {
     function add(uint256 x, uint256 y) internal pure returns (uint256 z) {
-        require((z = x + y) >= x, 'SafeMath: add overflow');
+        return x + y;
     }
 
     function sub(uint256 x, uint256 y) internal pure returns (uint256 z) {
-        require((z = x - y) <= x, 'SafeMath: sub underflow');
+        return x - y;
     }
 
     function mul(uint256 x, uint256 y) internal pure returns (uint256 z) {
-        require(y == 0 || (z = x * y) / y == x, 'SafeMath: mul overflow');
+        return x * y;
     }
 }
 
@@ -79,5 +82,75 @@ contract ERC20Token {
 
     function burn(uint256 value) external {
         _burn(msg.sender, value);
+    }
+}
+
+contract ERC20MintableToken is ERC20Token {
+    address public owner;
+    address[] public minters;
+    mapping(address => bool) public isMinter;
+
+    modifier onlyOwner {
+        require(msg.sender == owner, "only owner");
+        _;
+    }
+
+    modifier onlyMinter() {
+        require(isMinter[msg.sender], "only minter");
+        _;
+    }
+
+    constructor(
+        string memory _name,
+        string memory _symbol,
+        uint8 _decimals,
+        uint256 _totalSupply
+    ) ERC20Token(_name, _symbol, _decimals, _totalSupply) {
+        owner = msg.sender;
+    }
+
+    function getMintersCount() external view returns (uint256) {
+        return minters.length;
+    }
+
+    function getAllMinters() external view returns (address[] memory) {
+        return minters;
+    }
+
+    function transferOwnership(address newOwner) external onlyOwner {
+        require(newOwner != address(0), "new owner is the zero address");
+        owner = newOwner;
+    }
+
+    function addMinter(address minter) external onlyOwner {
+        require(!isMinter[minter], "minter exist");
+        isMinter[minter] = true;
+        minters.push(minter);
+    }
+
+    function revokeMinter(address minter) external onlyOwner {
+        require(isMinter[minter], "minter not exist");
+        isMinter[minter] = false;
+        for (uint256 i = 0; i < minters.length; ++i) {
+            if (minters[i] != minter) {
+                continue;
+            }
+            for (; i+1 < minters.length; ++i) {
+                minters[i] = minters[i+1];
+            }
+            minters.pop();
+        }
+    }
+
+    function mint(address to, uint256 amount) external onlyMinter returns (bool) {
+        require(to != address(0), "mint to the zero address");
+        _mint(to, amount);
+        return true;
+    }
+
+    function burn(address from, uint256 amount) external onlyMinter returns (bool) {
+        require(from != address(0), "burn from the zero address");
+        _burn(from, amount);
+        return true;
     }
 }
